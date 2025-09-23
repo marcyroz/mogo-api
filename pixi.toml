@@ -1,0 +1,18 @@
+[workspace]
+authors = ["Vinicius <vinipg1@hotmail.com>"]
+channels = ["conda-forge"]
+name = "mogo-api"
+platforms = ["win-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = "3.9.*"
+gdal = "3.9.*" 
+psycopg2 = "*" 
+
+[pypi-dependencies]
+django = "*"
+djangorestframework = "*"
+python-dotenv = "*"

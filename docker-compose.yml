@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:15-3.5
+    container_name: databaseMogo_db
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: ${DATABASE_NAME}
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+    ports:
+      - "${DATABASE_PORT}:5432"
+
+volumes:
+  postgis_data:

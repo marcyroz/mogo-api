@@ -11,6 +11,42 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# ========== CONFIGURAÇÃO GDAL/GEOS PARA WINDOWS ==========
+if os.name == 'nt':  # Windows
+    # Caminho exato do seu ambiente pixi (baseado no pixi info)
+    pixi_prefix = Path(os.environ.get('PIXI_PREFIX'))
+    
+    # Caminhos das bibliotecas
+    library_bin = pixi_prefix / 'Library' / 'bin'
+    library_share = pixi_prefix / 'Library' / 'share'
+    
+    if library_bin.exists():
+        # Adicionar ao PATH do sistema
+        os.environ['PATH'] = str(library_bin) + ';' + os.environ.get('PATH', '')
+        
+        # Configurações específicas do GDAL
+        os.environ['GDAL_DATA'] = str(library_share / 'gdal')
+        os.environ['PROJ_LIB'] = str(library_share / 'proj')
+        
+        # Para GDAL 3.9.0, definir biblioteca específica
+        gdal_dll = library_bin / 'gdal.dll'  # Para GDAL 3.9.0
+        if gdal_dll.exists():
+            GDAL_LIBRARY_PATH = str(gdal_dll)
+        
+        geos_dll = library_bin / 'geos_c.dll'
+        if geos_dll.exists():
+            GEOS_LIBRARY_PATH = str(geos_dll)
+            
+        print(f"✅ GDAL 3.9.0 configurado: {library_bin}")
+    else:
+        print(f"⚠️ Pasta não encontrada: {library_bin}")
+# ========================================================
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,6 +73,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.gis',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
@@ -74,8 +112,12 @@ WSGI_APPLICATION = 'mogo.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.contrib.gis.db.backends.postgis',
+        'NAME': os.environ.get('DATABASE_NAME'),
+        'USER': os.environ.get('DATABASE_USER'),
+        'PASSWORD': os.environ.get('DATABASE_PASSWORD'),
+        'HOST': os.environ.get('DATABASE_HOST'),
+        'PORT': os.environ.get('DATABASE_PORT'),
     }
 }
 
