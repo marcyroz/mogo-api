@@ -78,6 +78,8 @@ INSTALLED_APPS = [
     
     # Apps locais
     'usuarios',
+    'navigation',
+    'social',
 ]
 
 MIDDLEWARE = [

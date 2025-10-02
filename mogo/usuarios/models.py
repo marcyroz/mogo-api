@@ -1,6 +1,7 @@
 from django.db import models
 import uuid
 
+# Usuario, PCD e Terceiro models
 
 class Usuario(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
