@@ -1,17 +1,28 @@
 from django.db import models
 import uuid
+from pydantic import BaseModel, model_validator
+from typing_extensions import Self
 
 # Usuario, PCD e Terceiro models
+
 
 class Usuario(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     nome = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
+    password = models.CharField(max_length=128)
+    password_repeat = models.CharField(max_length=128)
     foto_perfil = models.ImageField(
         upload_to='fotos_perfil/', null=True, blank=True)
     bio = models.TextField(null=True, blank=True, max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
+
+    @model_validator(mode='after')
+    def check_passwords_match(self) -> Self:
+        if self.password != self.password_repeat:
+            raise ValueError('A senha não coincide.')
+        return self
 
     class Meta:
         db_table = 'usuarios'
