@@ -5,6 +5,7 @@ import uuid
 
 # Avaliacao e Favoritos models
 
+
 class Avaliacao(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     usuario = models.ForeignKey(
@@ -25,7 +26,7 @@ class Avaliacao(models.Model):
                 check=models.Q(nota__gte=1) & models.Q(nota__lte=5),
                 name='valid_nota_range'
             ),
-            models.UniqueConstraint( 
+            models.UniqueConstraint(
                 fields=['usuario', 'local'],
                 name='unique_usuario_local_avaliacao'
             )
@@ -41,6 +42,8 @@ class Favorito(models.Model):
         Usuario, on_delete=models.CASCADE, related_name='favoritos')
     local = models.ForeignKey(
         Local, on_delete=models.CASCADE, related_name='favoritos')
+    apelido = models.CharField(
+        max_length=50, null=True, blank=True)  # Apelido opcional
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
