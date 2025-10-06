@@ -17,4 +17,4 @@ django = "*"
 djangorestframework = "*"
 python-dotenv = "*"
 pillow = "*"
-pydantic = "*"
+pydantic = {version = "*", extras = ["email"]}
