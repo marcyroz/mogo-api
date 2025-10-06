@@ -1,8 +1,5 @@
 from django.db import models
 import uuid
-from pydantic import BaseModel, model_validator
-from typing_extensions import Self
-
 # Usuario, PCD e Terceiro models
 
 
@@ -11,18 +8,11 @@ class Usuario(models.Model):
     nome = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=128)
-    password_repeat = models.CharField(max_length=128)
     foto_perfil = models.ImageField(
         upload_to='fotos_perfil/', null=True, blank=True)
     bio = models.TextField(null=True, blank=True, max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
-
-    @model_validator(mode='after')
-    def check_passwords_match(self) -> Self:
-        if self.password != self.password_repeat:
-            raise ValueError('A senha não coincide.')
-        return self
 
     class Meta:
         db_table = 'usuarios'
@@ -55,13 +45,32 @@ class PCD(models.Model):
         ('multipla', 'Múltipla'),
     ]
 
+    FORMA_LOCOMOCAO = [
+        ('andar', 'Andar'),
+        ('cadeira_rodas', 'Cadeira de Rodas'),
+        ('muletas', 'Muletas'),
+        ('andador', 'Andador'),
+        ('outro', 'Outro'),
+    ]
+
+    RECURSOS_ACESSIBILIDADE = [
+        ('rampas', 'Rampas'),
+        ('pisos_tateis', 'Pisos Táteis'),
+        ('elevadores', 'Elevadores'),
+        ('outros', 'Outros Recursos'),
+    ]
+
     usuario = models.OneToOneField(
         Usuario, on_delete=models.CASCADE, related_name='pcd')
     tipo_deficiencia = models.CharField(
         max_length=20,
         choices=TIPOS_DEFICIENCIA
     )
-    detalhes = models.TextField(null=True, blank=True)
+    forma_locomocao = models.CharField(
+        max_length=50, choices=FORMA_LOCOMOCAO, default='andar')
+    recursos_acessibilidade = models.JSONField(default=list)
+    detalhes = models.TextField(
+        null=True, blank=True, default='', max_length=500)
 
     class Meta:
         db_table = 'pcds'
@@ -83,9 +92,19 @@ class Terceiro(models.Model):
         ('outro', 'Outro'),
     ]
 
+    TIPO_DEFICIENCIA_ASSISTIDA = [
+        ('fisica', 'Física'),
+        ('visual', 'Visual'),
+        ('auditiva', 'Auditiva'),
+        ('intelectual', 'Intelectual'),
+        ('multipla', 'Múltipla'),
+    ]
+
     usuario = models.OneToOneField(
         Usuario, on_delete=models.CASCADE, related_name='terceiro')
     relacao = models.CharField(max_length=20, choices=TIPOS_RELACAO)
+    pcd_assistida_tipo_deficiencia = models.CharField(
+        max_length=20, choices=TIPO_DEFICIENCIA_ASSISTIDA)
     descricao = models.TextField(null=True, blank=True)
 
     class Meta:

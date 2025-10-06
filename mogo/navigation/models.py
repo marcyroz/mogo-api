@@ -1,9 +1,11 @@
 from django.contrib.gis.db import models
 from django.contrib.gis.geos import Point
 from usuarios.models import Usuario
+from django.contrib.gis.geos import Point
 import uuid
 
 # Rotas, Locais e Historico models
+
 
 class Rota(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -36,8 +38,15 @@ class Rota(models.Model):
         # Implementação posterior
         pass
 
+    def calcular_distancia_estimada(self):
+        """Calcula distância estimada da rota em km"""
+        origem = Point(self.origem_lng, self.origem_lat)
+        destino = Point(self.destino_lng, self.destino_lat)
+        return origem.distance(destino) * 111  # Aproximação para km
+
     def __str__(self):
         return f"Rota de {self.usuario.nome} - {self.created_at.strftime('%d/%m/%Y')}"
+
 
 class Local(models.Model):
     id = models.UUIDField(
@@ -49,7 +58,7 @@ class Local(models.Model):
     # GeoDjango field - combina lat/lng em um ponto
     point = models.PointField()  # ← GeoDjango field!
 
-    TIPO_LOCAL = models.CharField(max_length=50, choices=[
+    tipo_local = models.CharField(max_length=50, choices=[
         ('saude', 'Saúde'),
         ('educacao', 'Educação'),
         ('transporte', 'Transporte'),
@@ -74,10 +83,9 @@ class Local(models.Model):
         outro_ponto = Point(outra_coordenada['lng'], outra_coordenada['lat'])
         return self.point.distance(outro_ponto)
 
-    def apresenta_avaliacoes(self):
-        """Retorna avaliações do local"""
-        # Implementação posterior
-        pass
+    def get_avaliacoes_recentes(self, limite=5):
+        """Retorna avaliações mais recentes"""
+        return self.avaliacoes.order_by('-created_at')[:limite]
 
     def save(self, *args, **kwargs):
         """Atualizar point automaticamente baseado em lat/lng"""
@@ -87,6 +95,7 @@ class Local(models.Model):
     def __str__(self):
         return self.nome
 
+
 class HistoricoBusca(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     usuario = models.ForeignKey(
@@ -94,6 +103,12 @@ class HistoricoBusca(models.Model):
     origem_texto = models.CharField(max_length=300)
     destino_texto = models.CharField(max_length=300)
     data_hora = models.DateTimeField(auto_now_add=True)
+
+    # Coordenadas de origem e destino
+    origem_lat = models.FloatField(null=True, blank=True, default=None)
+    origem_lng = models.FloatField(null=True, blank=True, default=None)
+    destino_lat = models.FloatField(null=True, blank=True, default=None)
+    destino_lng = models.FloatField(null=True, blank=True, default=None)
 
     class Meta:
         db_table = 'historico_buscas'
