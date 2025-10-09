@@ -12,6 +12,11 @@ class AvaliacaoJaExisteError(APIException):
     default_detail = 'Você já avaliou este local'
     default_code = 'review_exists'
 
+class AvaliacaoNaoEncontradaError(APIException):
+    status_code = 404
+    default_detail = 'Avaliação não encontrada'
+    default_code = 'review_not_found'
+
 
 class FavoritoValidationError(APIException):
     status_code = 400
