@@ -1,6 +1,5 @@
 from rest_framework.exceptions import APIException
 
-
 class LocalNaoEncontradoError(APIException):
     status_code = 404
     default_detail = 'Local não encontrado'
@@ -23,3 +22,21 @@ class CoordenadaInvalidaError(APIException):
     status_code = 400
     default_detail = 'Coordenadas inválidas fornecidas'
     default_code = 'invalid_coordinates'
+
+
+class LocalValidationError(APIException):
+    status_code = 400
+    default_detail = 'Solicitação incorreta. Verifique um ou mais campos.'
+    default_code = 'location_validation_error'
+
+
+class LocalJaExisteError(APIException):
+    status_code = 409
+    default_detail = 'Já existe um local nesta posição'
+    default_code = 'location_already_exists'
+
+
+class HistoricoBuscaValidationError(APIException):
+    status_code = 400
+    default_detail = 'Solicitação incorreta. Verifique um ou mais campos.'
+    default_code = 'search_history_validation_error'
