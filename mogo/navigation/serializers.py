@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from navigation.models import Rota, Local, HistoricoBusca
 
+
 class RotaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rota
@@ -9,7 +10,7 @@ class RotaSerializer(serializers.ModelSerializer):
 class LocalSerializer(serializers.ModelSerializer):
     class Meta:
         model = Local
-        fields = ['id', 'nome', 'latitude', 'longitude', 'point', 'TIPO_LOCAL', 'created_at']
+        fields = ['id', 'nome', 'latitude', 'longitude', 'point', 'tipo_local', 'created_at']
         
 class HistoricoBuscaSerializer(serializers.ModelSerializer):
     class Meta:

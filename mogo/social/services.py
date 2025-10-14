@@ -4,20 +4,20 @@ from django.db import IntegrityError
 from django.db.models import Avg, Count
 
 # Imports dos schemas
-from schemas.avaliacao_schemas import CriarAvaliacaoSchema
-from schemas.favorito_schemas import CriarFavoritoSchema
+from .schemas.avaliacao_schemas import CriarAvaliacaoSchema
+from .schemas.favorito_schemas import CriarFavoritoSchema
 
 # Imports dos models
-from models import Avaliacao, Favorito
+from .models import Avaliacao, Favorito
 
 # Imports das exceptions customizadas
-from exceptions import (
+from .exceptions.social_exceptions import (
    AvaliacaoValidationError,
-    AvaliacaoJaExisteError,
-    AvaliacaoNaoEncontradaError,
-    FavoritoValidationError,
-    FavoritoJaExisteError,
-    FavoritoNaoEncontradoError
+   AvaliacaoJaExisteError,
+   AvaliacaoNaoEncontradaError,
+   FavoritoValidationError,
+   FavoritoJaExisteError,
+   FavoritoNaoEncontradoError
 )
 
 class SocialService:

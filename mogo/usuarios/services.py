@@ -4,14 +4,15 @@ from django.db import IntegrityError
 from django.contrib.auth.hashers import make_password, check_password
 
 # Imports dos schemas
-from schemas.user_schemas import CriarUsuarioSchema
-from schemas.pcd_schemas import CriarPCDSchema
+from .schemas.user_schemas import CriarUsuarioSchema
+from .schemas.pcd_schemas import CriarPCDSchema
 
 # Imports dos models
-from models import Usuario, PCD
+from .models import Usuario, PCD
+from usuarios.models import Usuario, PCD
 
 # Imports das exceptions customizadas
-from exceptions import (
+from .exceptions.user_exceptions import (
     UsuarioValidationError,
     UsuarioJaExisteError,
     UsuarioNaoEncontradoError,
@@ -162,7 +163,6 @@ class UsuarioService:
             # Incluir dados PCD se existir
             dados_pcd = None
             try:
-                from models import PCD
                 pcd = PCD.objects.get(usuario=usuario)
                 dados_pcd = {
                     'tipo_deficiencia': pcd.tipo_deficiencia,
@@ -177,10 +177,11 @@ class UsuarioService:
                 'usuario': usuario,
                 'pcd': dados_pcd  
             }
-            
+
         except Usuario.DoesNotExist:
             # 🚨 EXCEPTION vai para handler global
             raise UsuarioNaoEncontradoError()
+
 
     @staticmethod
     def atualizar_usuario(usuario_id, dados):
