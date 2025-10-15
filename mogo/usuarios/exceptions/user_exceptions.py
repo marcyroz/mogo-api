@@ -24,3 +24,11 @@ class AuthenticationRequiredError(APIException):
     status_code = 401
     default_detail = 'Autenticação necessária. Verifique se está logado.'
     default_code = 'authentication_required'
+
+class TerceiroValidationError(Exception):
+    """Erro de validação de terceiro"""
+    pass
+
+class TerceiroJaExisteError(Exception):
+    """Erro quando terceiro já existe para um usuário"""
+    pass

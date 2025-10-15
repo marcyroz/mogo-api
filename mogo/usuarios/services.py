@@ -2,6 +2,13 @@ import hashlib
 from pydantic import ValidationError
 from django.db import IntegrityError
 from django.contrib.auth.hashers import make_password, check_password
+from django.utils import timezone
+import uuid
+from pydantic import ValidationError
+from django.db import IntegrityError
+from usuarios.models import Usuario, Terceiro
+from usuarios.schemas.terceiro_schema import CriarTerceiroSchema
+
 
 # Imports dos schemas
 from .schemas.user_schemas import CriarUsuarioSchema
@@ -17,7 +24,13 @@ from .exceptions.user_exceptions import (
     UsuarioJaExisteError,
     UsuarioNaoEncontradoError,
     ContaDesativadaError,
-    AuthenticationRequiredError
+    AuthenticationRequiredError 
+)
+
+from usuarios.exceptions.user_exceptions import (
+    UsuarioNaoEncontradoError,
+    TerceiroJaExisteError,
+    TerceiroValidationError
 )
 
 class UsuarioService:
@@ -227,8 +240,7 @@ class UsuarioService:
         if usuario.deleted_at:
             raise ContaDesativadaError()
         
-        from datetime import datetime
-        usuario.deleted_at = datetime.now()
+        usuario.deleted_at = timezone.now()
         usuario.save()
         
         return True
@@ -246,41 +258,96 @@ class UsuarioService:
 
     @staticmethod
     def alterar_senha(usuario_id, senha_atual, nova_senha):
-        """
-        Alterar senha do usuário
-        """
-        try:
-            usuario = Usuario.objects.get(id=usuario_id)
-        except Usuario.DoesNotExist:
-            raise UsuarioNaoEncontradoError()
-            
+        usuario = Usuario.objects.get(id=usuario_id)
+
         if usuario.deleted_at:
             raise ContaDesativadaError()
-            
-        # Verificar senha atual
+
         if not check_password(senha_atual, usuario.password):
             raise AuthenticationRequiredError()
-            
-        # Validar nova senha usando schema (apenas o campo senha)
-        try:
-            from schemas.user_schemas import CriarUsuarioSchema
-            # Criar dados temporários para validação da senha
-            dados_temp = {
-                'nome': 'Temp',
-                'sobrenome': 'User',
-                'email': 'temp@test.com',
-                'email_confirmation': 'temp@test.com',
-                'password': nova_senha,
-                'password_confirmation': nova_senha,
-                'aceita_termos': True,
-                'aceita_privacidade': True
-            }
-            schema = CriarUsuarioSchema(**dados_temp)
-        except ValidationError:
-            raise UsuarioValidationError()
-            
-        # Atualizar senha
+
+        # Validar senha mínima
+        if len(nova_senha) < 8:
+            raise UsuarioValidationError("Nova senha deve ter no mínimo 8 caracteres")
+
         usuario.password = make_password(nova_senha)
         usuario.save()
-        
         return True
+
+
+
+class TerceiroService:
+    """Service layer para operações de terceiros/cuidador"""
+
+    @staticmethod
+    def criar_terceiro(dados):
+        """
+        Criar um terceiro/cuidador para uma PCD.
+        """
+        try:
+            schema = CriarTerceiroSchema(**dados)
+        except ValidationError as e:
+            raise TerceiroValidationError(str(e))
+
+        # Buscar usuário vinculado
+        try:
+            usuario = Usuario.objects.get(id=schema.usuario_id)
+        except Usuario.DoesNotExist:
+            raise UsuarioNaoEncontradoError()
+
+        # Checar se já existe Terceiro com mesma relação para o usuário
+        if Terceiro.objects.filter(usuario=usuario, relacao=schema.relacao).exists():
+            raise TerceiroJaExisteError()
+
+        try:
+            terceiro = Terceiro.objects.create(
+                usuario=usuario,
+                relacao=schema.relacao,
+                pcd_assistida_tipo_deficiencia=schema.pcd_assistida_tipo_deficiencia,
+                descricao=schema.descricao
+            )
+            return terceiro
+
+        except IntegrityError:
+            raise TerceiroJaExisteError()
+
+    @staticmethod
+    def listar_terceiros():
+        """Listar todos os terceiros"""
+        return Terceiro.objects.all()
+
+    @staticmethod
+    def buscar_por_id(terceiro_id):
+        """Buscar terceiro específico"""
+        try:
+            return Terceiro.objects.get(id=terceiro_id)
+        except Terceiro.DoesNotExist:
+            raise TerceiroValidationError("Terceiro não encontrado")
+
+    @staticmethod
+    def deletar_terceiro(terceiro_id):
+        """Excluir terceiro"""
+        try:
+            terceiro = Terceiro.objects.get(id=terceiro_id)
+            terceiro.delete()
+            return True
+        except Terceiro.DoesNotExist:
+            raise TerceiroValidationError("Terceiro não encontrado")
+        
+    @staticmethod
+    def atualizar_terceiro(terceiro_id, dados):
+        """Atualizar um terceiro específico"""
+        try:
+            terceiro = Terceiro.objects.get(id=terceiro_id)
+        except Terceiro.DoesNotExist:
+            raise TerceiroValidationError("Terceiro não encontrado")
+
+        # Atualizar campos permitidos
+        if 'relacao' in dados:
+            terceiro.relacao = dados['relacao']
+        if 'descricao' in dados:
+            terceiro.descricao = dados['descricao']
+
+        terceiro.save()
+        return terceiro
+        
