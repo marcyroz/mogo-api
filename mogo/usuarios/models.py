@@ -14,6 +14,17 @@ class Usuario(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
+    # ========== ATRIBUTOS OBRIGATÓRIOS PARA AUTH_USER_MODEL ==========
+    USERNAME_FIELD = 'email'  # Campo usado para login
+    # Campos obrigatórios além do USERNAME_FIELD e password
+    REQUIRED_FIELDS = ['nome']
+
+    # Para compatibilidade com Django Admin
+    is_staff = models.BooleanField(default=False)
+    is_superuser = models.BooleanField(default=False)
+    last_login = models.DateTimeField(null=True, blank=True)
+    # ==================================================================
+
     class Meta:
         db_table = 'usuarios'
         verbose_name = 'Usuário'
@@ -33,6 +44,40 @@ class Usuario(models.Model):
 
     def __str__(self):
         return self.nome
+
+# ========== PROPRIEDADES NECESSÁRIAS PARA JWT ==========
+
+    @property
+    def is_authenticated(self):
+        """Sempre retorna True para usuários válidos"""
+        return True
+
+    @property
+    def is_anonymous(self):
+        """Sempre retorna False para usuários autenticados"""
+        return False
+
+    @property
+    def is_active(self):
+        """Verifica se a conta não foi desativada (soft delete)"""
+        return self.deleted_at is None
+
+    # Necessário para o JWT identificar o usuário
+    def get_username(self):
+        """Retorna o identificador único do usuário (email neste caso)"""
+        return self.email
+
+    # ========== MÉTODOS PARA COMPATIBILIDADE COM ADMIN ==========
+
+    def has_perm(self, perm, obj=None):
+        """Verifica se o usuário tem uma permissão específica"""
+        return self.is_superuser
+
+    def has_module_perms(self, app_label):
+        """Verifica se o usuário tem permissões para acessar um app"""
+        return self.is_superuser
+
+    # ======================================================
 
 
 class PCD(models.Model):

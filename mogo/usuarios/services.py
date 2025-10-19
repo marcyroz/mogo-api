@@ -1,46 +1,37 @@
-import hashlib
 from pydantic import ValidationError
 from django.db import IntegrityError
 from django.contrib.auth.hashers import make_password, check_password
 from django.utils import timezone
-import uuid
-from pydantic import ValidationError
-from django.db import IntegrityError
-from usuarios.models import Usuario, Terceiro
-from usuarios.schemas.terceiro_schema import CriarTerceiroSchema
-
+from rest_framework.exceptions import ErrorDetail
 
 # Imports dos schemas
 from .schemas.user_schemas import CriarUsuarioSchema
 from .schemas.pcd_schemas import CriarPCDSchema
+from .schemas.terceiro_schema import CriarTerceiroSchema
 
 # Imports dos models
-from .models import Usuario, PCD
-from usuarios.models import Usuario, PCD
+from .models import Usuario, PCD, Terceiro
 
 # Imports das exceptions customizadas
 from .exceptions.user_exceptions import (
+    SenhaIncorretaError,
     UsuarioValidationError,
     UsuarioJaExisteError,
     UsuarioNaoEncontradoError,
     ContaDesativadaError,
-    AuthenticationRequiredError 
-)
-
-from usuarios.exceptions.user_exceptions import (
-    UsuarioNaoEncontradoError,
-    TerceiroJaExisteError,
-    TerceiroValidationError
+    AuthenticationRequiredError,
+    TerceiroValidationError,
+    TerceiroJaExisteError
 )
 
 class UsuarioService:
     """Service layer para operações de usuário"""
-    
+
     @staticmethod
     def criar_usuario(dados):
         """
         Criar novo usuário com validação completa
-        
+
         Fluxo:
         1. Valida com Pydantic Schema
         2. Verifica se email já existe  
@@ -48,57 +39,64 @@ class UsuarioService:
         4. Retorna dados ou lança exception
         """
         try:
+            # PASSO 1: Validação Pydantic
             schema = CriarUsuarioSchema(**dados)
-            
+
         except ValidationError as e:
-            raise UsuarioValidationError()
-        
+            # CAPTURAR OS ERROS DETALHADOS DO PYDANTIC
+            # Formatar erros de forma legível
+            erros_formatados = []
+            for erro in e.errors():
+                campo = ' -> '.join(str(loc) for loc in erro['loc'])
+                mensagem = erro['msg']
+                erros_formatados.append(f"{campo}: {mensagem}")
+
+            mensagem_erro = "; ".join(erros_formatados)
+
+            # Criar exception com os detalhes
+            exc = UsuarioValidationError()
+            # Substituir mensagem padrão com ErrorDetail
+            exc.detail = ErrorDetail(mensagem_erro)
+            raise exc
         # PASSO 2: Verificar se email já existe
         if Usuario.objects.filter(email=schema.email).exists():
-            # 🚨 LANÇA EXCEPTION - Usuario já existe
             raise UsuarioJaExisteError()
-        
+
         try:
-            # Criar usuário no banco
+            # PASSO 3: Criar usuário no banco
             usuario = Usuario.objects.create(
-                nome=f"{schema.nome} {schema.sobrenome}",  # Combinar nome e sobrenome
+                nome=f"{schema.nome} {schema.sobrenome}",
                 email=schema.email,
                 password=make_password(schema.password),
                 bio=schema.bio,
                 foto_perfil=schema.foto_perfil
             )
-            
-            # Retornar o objeto criado
             return usuario
-            
+
         except IntegrityError:
-            # PASSO 3B: Erro no banco (race condition)
-            # Alguém criou o mesmo email entre a verificação e a criação
             raise UsuarioJaExisteError()
 
     @staticmethod
     def criar_usuario_pcd(dados_usuario, dados_pcd):
         """
         Criar usuário PCD (transação completa)
-        
+
         Fluxo mais complexo com múltiplas validações
         """
         try:
             usuario_schema = CriarUsuarioSchema(**dados_usuario)
-            
-        except ValidationError as e:
+        except ValidationError:
             raise UsuarioValidationError()
-        
+
         try:
             pcd_schema = CriarPCDSchema(**dados_pcd)
-            
-        except ValidationError as e:
+        except ValidationError:
             raise UsuarioValidationError()
-        
+
         # PASSO 3: Verificar email único
         if Usuario.objects.filter(email=usuario_schema.email).exists():
             raise UsuarioJaExisteError()
-        
+
         try:
             # Criar usuário
             usuario = Usuario.objects.create(
@@ -108,7 +106,7 @@ class UsuarioService:
                 bio=usuario_schema.bio,
                 foto_perfil=usuario_schema.foto_perfil
             )
-            
+
             # PASSO 5: Criar perfil PCD
             pcd = PCD.objects.create(
                 usuario=usuario,
@@ -117,12 +115,12 @@ class UsuarioService:
                 recursos_acessibilidade=pcd_schema.recursos_acessibilidade,
                 detalhes=pcd_schema.detalhes
             )
-            
+
             return {
                 'usuario': usuario,
                 'pcd': pcd
             }
-            
+
         except IntegrityError:
             raise UsuarioJaExisteError()
 
@@ -134,35 +132,31 @@ class UsuarioService:
         try:
             # PASSO 1: Buscar usuário por email
             usuario = Usuario.objects.get(email=email)
-            
+
         except Usuario.DoesNotExist:
             # PASSO 1B: Email não encontrado
             raise UsuarioNaoEncontradoError()
-        
+
         # PASSO 2: Verificar se conta está ativa
         if usuario.deleted_at is not None:
             # PASSO 2B: Conta desativada
             raise ContaDesativadaError()
-        
+
         # PASSO 3: Verificar senha
         if not check_password(senha, usuario.password):
             # Senha incorreta - tratamos como "não encontrado" por segurança
-            raise UsuarioNaoEncontradoError()
-        
-        # PASSO 4: Usuário autenticado com sucesso
+            raise SenhaIncorretaError()
+
         # Verificar se tem perfil PCD
-        is_pcd = False
-        try:
-            from models import PCD
-            PCD.objects.get(usuario=usuario)
-            is_pcd = True
-        except PCD.DoesNotExist:
-            pass
-            
+        is_pcd = PCD.objects.filter(usuario=usuario).exists()
+
+        # Verificar se é Terceiro (ADICIONAR ESTA LINHA)
+        is_terceiro = Terceiro.objects.filter(usuario=usuario).exists()
+
         return {
             'usuario': usuario,
             'is_pcd': is_pcd,
-            'token': 'jwt-token-aqui'  # Implementar JWT depois
+            'is_terceiro': is_terceiro
         }
 
     @staticmethod
@@ -172,7 +166,7 @@ class UsuarioService:
         """
         try:
             usuario = Usuario.objects.get(id=usuario_id)
-            
+
             # Incluir dados PCD se existir
             dados_pcd = None
             try:
@@ -185,16 +179,15 @@ class UsuarioService:
             except PCD.DoesNotExist:
                 # Usuário não tem perfil PCD
                 pass
-            
+
             return {
                 'usuario': usuario,
-                'pcd': dados_pcd  
+                'pcd': dados_pcd
             }
 
         except Usuario.DoesNotExist:
             # 🚨 EXCEPTION vai para handler global
             raise UsuarioNaoEncontradoError()
-
 
     @staticmethod
     def atualizar_usuario(usuario_id, dados):
@@ -205,26 +198,24 @@ class UsuarioService:
             usuario = Usuario.objects.get(id=usuario_id)
         except Usuario.DoesNotExist:
             raise UsuarioNaoEncontradoError()
-        
+
         # Verificar se conta está ativa
         if usuario.deleted_at:
             raise ContaDesativadaError()
-        
+
         # Atualizar campos permitidos
         if 'nome' in dados:
             if not dados['nome'] or len(dados['nome'].strip()) < 2:
                 raise UsuarioValidationError()
             usuario.nome = dados['nome'].strip()
-        
 
-        
         if 'bio' in dados:
             if len(dados['bio']) > 500:
                 raise UsuarioValidationError()
             usuario.bio = dados['bio']
-        
+
         usuario.save()
-        
+
         return usuario
 
     @staticmethod
@@ -236,13 +227,13 @@ class UsuarioService:
             usuario = Usuario.objects.get(id=usuario_id)
         except Usuario.DoesNotExist:
             raise UsuarioNaoEncontradoError()
-            
+
         if usuario.deleted_at:
             raise ContaDesativadaError()
-        
+
         usuario.deleted_at = timezone.now()
         usuario.save()
-        
+
         return True
 
     @staticmethod
@@ -253,7 +244,7 @@ class UsuarioService:
         usuarios = Usuario.objects.filter(
             deleted_at__isnull=True
         ).order_by('-created_at')[:limite]
-        
+
         return usuarios
 
     @staticmethod
@@ -268,12 +259,12 @@ class UsuarioService:
 
         # Validar senha mínima
         if len(nova_senha) < 8:
-            raise UsuarioValidationError("Nova senha deve ter no mínimo 8 caracteres")
+            raise UsuarioValidationError(
+                "Nova senha deve ter no mínimo 8 caracteres")
 
         usuario.password = make_password(nova_senha)
         usuario.save()
         return True
-
 
 
 class TerceiroService:
@@ -333,7 +324,7 @@ class TerceiroService:
             return True
         except Terceiro.DoesNotExist:
             raise TerceiroValidationError("Terceiro não encontrado")
-        
+
     @staticmethod
     def atualizar_terceiro(terceiro_id, dados):
         """Atualizar um terceiro específico"""
@@ -350,4 +341,3 @@ class TerceiroService:
 
         terceiro.save()
         return terceiro
-        

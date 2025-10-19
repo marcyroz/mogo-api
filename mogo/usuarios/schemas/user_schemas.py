@@ -2,6 +2,7 @@ import re
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+
 class CriarUsuarioSchema(BaseModel):
     """Schema para criação de usuário"""
 

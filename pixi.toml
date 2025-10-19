@@ -19,3 +19,5 @@ djangorestframework = "*"
 python-dotenv = "*"
 pillow = "*"
 pydantic = {version = "*", extras = ["email"]}
+email-validator = "*"
+djangorestframework-simplejwt = "*"

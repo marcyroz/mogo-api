@@ -3,7 +3,7 @@ version: '3.8'
 services:
   db:
     image: postgis/postgis:15-3.5
-    container_name: databaseMogo_db
+    container_name: mogo_db
     environment:
       POSTGRES_USER: ${DATABASE_USER}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
@@ -11,7 +11,44 @@ services:
     volumes:
       - postgis_data:/var/lib/postgresql/data
     ports:
-      - "${DATABASE_PORT}:5432"
+      - "${DATABASE_PORT:-5432}:5432"
+    networks:
+      - mogo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER} -d ${DATABASE_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mogo_api
+    command: gunicorn --bind 0.0.0.0:8000 --workers 3 mogo.wsgi:application
+    volumes:
+      - ./mogo:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - mogo-network
+    restart: unless-stopped
 
 volumes:
   postgis_data:
+  static_volume:
+  media_volume:
+
+networks:
+  mogo-network:
+    driver: bridge

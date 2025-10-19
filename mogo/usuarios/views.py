@@ -4,10 +4,16 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.contrib.auth.hashers import make_password, check_password
 
-
-from usuarios.serializers import TerceiroSerializer
+from rest_framework.permissions import AllowAny
+from usuarios.jwt_service import TokenService
+from usuarios.serializers import (
+    TerceiroSerializer,
+    UsuarioSerializer,
+    RegisterInputSerializer,
+    LoginInputSerializer,
+)
 from usuarios.services import TerceiroService
-from usuarios.exceptions.user_exceptions import TerceiroValidationError
+from usuarios.exceptions.user_exceptions import SenhaIncorretaError, TerceiroValidationError
 
 
 from usuarios.models import Usuario, PCD, Terceiro
@@ -21,9 +27,130 @@ from usuarios.exceptions.user_exceptions import (
     AuthenticationRequiredError
 )
 
-
 class UsuarioViewSet(viewsets.ViewSet):
     """ViewSet completo para Usuário"""
+
+    def get_serializer_class(self):
+        """Retorna o serializer apropriado para cada action"""
+        if self.action == 'register':
+            return RegisterInputSerializer
+        elif self.action == 'login':
+            return LoginInputSerializer
+        return UsuarioSerializer
+
+    def get_serializer(self, *args, **kwargs):
+        """Instancia o serializer apropriado"""
+        serializer_class = self.get_serializer_class()
+        kwargs.setdefault('context', self.get_serializer_context())
+        return serializer_class(*args, **kwargs)
+
+    def get_serializer_context(self):
+        """Contexto para o serializer"""
+        return {
+            'request': self.request,
+            'format': self.format_kwarg,
+            'view': self
+        }
+
+    def _normalizar_dados(self, data):
+        """
+        Converte QueryDict (formulário HTML) para dict normal
+        Remove listas desnecessárias dos valores
+        """
+        dados_normalizados = {}
+
+        for key, value in data.items():
+            # Se é uma lista com um único elemento, pegar o elemento
+            if isinstance(value, list) and len(value) == 1:
+                dados_normalizados[key] = value[0]
+            else:
+                dados_normalizados[key] = value
+
+        # Converter strings de boolean para boolean real
+        for key in ['aceita_termos', 'aceita_privacidade']:
+            if key in dados_normalizados:
+                valor = dados_normalizados[key]
+                if isinstance(valor, str):
+                    dados_normalizados[key] = valor.lower() in (
+                        'true', '1', 'yes')
+
+        return dados_normalizados
+
+    @action(detail=False, methods=['post'], permission_classes=[AllowAny])
+    def register(self, request):
+        """
+        Criar usuário com registro público
+        URL: /usuarios/usuario/register/
+        """
+        # Normalizar dados (converter QueryDict para dict normal)
+        dados = self._normalizar_dados(request.data)
+
+        try:
+            # Validação e criação acontece direto no service (Pydantic)
+            usuario = UsuarioService.criar_usuario(dados)
+            tokens = TokenService.gerar_tokens(usuario)
+
+            return Response({
+                'message': 'Usuário criado com sucesso',
+                'user': {
+                    'id': str(usuario.id),
+                    'nome': usuario.nome,
+                    'email': usuario.email
+                },
+                'tokens': tokens
+            }, status=201)
+
+        except UsuarioValidationError as e:
+            return Response({
+                "message": str(e.detail),
+                "errors": str(e.detail)
+            }, status=e.status_code)
+
+        except UsuarioJaExisteError as e:
+            return Response({"message": str(e.detail)}, status=e.status_code)
+
+        except Exception as e:
+            import traceback
+            return Response({"message": f"Erro inesperado: {str(e)}"}, status=500)
+
+    @action(detail=False, methods=['post'], permission_classes=[AllowAny])
+    def login(self, request):
+        """
+        Login público
+        URL: /usuarios/usuario/login/
+        """
+        email = request.data.get('email')
+        password = request.data.get('password')
+
+        if not email or not password:
+            return Response(
+                {"message": "Campos 'email' e 'password' são obrigatórios."},
+                status=400
+            )
+
+        try:
+            auth_result = UsuarioService.autenticar_usuario(email, password)
+            tokens = TokenService.gerar_tokens(auth_result['usuario'])
+
+            return Response({
+                'message': 'Login realizado com sucesso',
+                'user': {
+                    'id': str(auth_result['usuario'].id),
+                    'nome': auth_result['usuario'].nome,
+                    'email': auth_result['usuario'].email,
+                    'is_pcd': auth_result['is_pcd'],
+                    'is_terceiro': auth_result['is_terceiro']
+                },
+                'tokens': tokens
+            }, status=200)
+        except UsuarioNaoEncontradoError as e:
+            return Response({"message": str(e.detail)}, status=e.status_code)
+        except SenhaIncorretaError as e:
+            return Response({"message": str(e.detail)}, status=e.status_code)
+        except ContaDesativadaError as e:
+            return Response({"message": str(e.detail)}, status=e.status_code)
+        except Exception as e:
+            return Response({"message": "Erro inesperado: " + str(e)}, status=500)
 
     def list(self, request):
         """Listar usuários ativos"""
@@ -60,7 +187,6 @@ class UsuarioViewSet(viewsets.ViewSet):
         except (UsuarioValidationError, UsuarioNaoEncontradoError, ContaDesativadaError) as e:
             return Response({"message": str(e.detail)}, status=e.status_code)
 
-
     @action(detail=True, methods=['delete'])
     def desativar(self, request, pk=None):
         try:
@@ -70,7 +196,6 @@ class UsuarioViewSet(viewsets.ViewSet):
             return Response({"message": str(e.detail)}, status=e.status_code)
         except Exception as e:
             return Response({"message": "Erro inesperado: " + str(e)}, status=400)
-
 
     @action(detail=True, methods=['post'])
     def alterar_senha(self, request, pk=None):
@@ -90,7 +215,8 @@ class UsuarioViewSet(viewsets.ViewSet):
 
         try:
             # Chama o service existente que já valida senha atual e nova senha
-            UsuarioService.alterar_senha(usuario_id=pk, senha_atual=senha_atual, nova_senha=nova_senha)
+            UsuarioService.alterar_senha(
+                usuario_id=pk, senha_atual=senha_atual, nova_senha=nova_senha)
             return Response({"message": "Senha alterada com sucesso."}, status=200)
 
         except UsuarioNaoEncontradoError as e:
@@ -103,7 +229,7 @@ class UsuarioViewSet(viewsets.ViewSet):
             return Response({"message": "Nova senha inválida: " + str(e)}, status=400)
         except Exception as e:
             return Response({"message": "Erro inesperado: " + str(e)}, status=500)
-        
+
     @action(detail=True, methods=['get'])
     def terceiros(self, request, pk=None):
         """
@@ -119,6 +245,7 @@ class UsuarioViewSet(viewsets.ViewSet):
             return Response({"message": str(e)}, status=404)
         except Exception as e:
             return Response({"message": "Erro inesperado: " + str(e)}, status=500)
+
 
 class PCDViewSet(viewsets.ViewSet):
     """ViewSet para PCD como entidade fraca"""
@@ -169,6 +296,7 @@ class PCDViewSet(viewsets.ViewSet):
         pcd.save()
         serializer = PCDSerializer(pcd)
         return Response(serializer.data, status=201)
+
     @action(detail=True, methods=['put', 'patch'])
     def atualizar(self, request, pk=None):
         """Atualizar PCD de um usuário"""
@@ -186,6 +314,8 @@ class PCDViewSet(viewsets.ViewSet):
         pcd.save()
         serializer = PCDSerializer(pcd)
         return Response(serializer.data)
+
+
 class TerceiroViewSet(viewsets.ViewSet):
     """ViewSet para terceiros/cuidador"""
 
@@ -218,7 +348,7 @@ class TerceiroViewSet(viewsets.ViewSet):
             return Response({"message": "Terceiro deletado com sucesso."})
         except TerceiroValidationError as e:
             return Response({"message": str(e)}, status=404)
-    
+
     @action(detail=True, methods=['put', 'patch'])
     def atualizar(self, request, pk=None):
         """Atualizar terceiro"""

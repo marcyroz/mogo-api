@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,7 +21,7 @@ load_dotenv()
 # ========== CONFIGURAÇÃO GDAL/GEOS PARA WINDOWS ==========
 if os.name == 'nt':  # Windows
     # Caminho exato do seu ambiente pixi (baseado no pixi info)
-    pixi_prefix = Path(os.environ.get('PIXI_PREFIX'))
+    pixi_prefix = Path(os.environ.get('PIXI_PREFIX'))  # type: ignore
 
     # Caminhos das bibliotecas
     library_bin = pixi_prefix / 'Library' / 'bin'
@@ -76,6 +77,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.gis',
     'rest_framework',
+    'rest_framework_simplejwt',
 
     # Apps locais
     'usuarios',
@@ -85,7 +87,29 @@ INSTALLED_APPS = [
 
 REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'common.exceptions_handler.custom_exception_handler',
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',  # Padrão: rotas privadas
+    ],
 }
+
+# Configurações do JWT
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+
+    'USER_ID_FIELD': 'id',  # Campo no model Usuario
+    'USER_ID_CLAIM': 'user_id',  # Claim no token JWT
+}
+
+# Define o modelo de usuário customizado para autenticação
+AUTH_USER_MODEL = 'usuarios.Usuario'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -172,3 +196,19 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ========== CONFIGURAÇÕES PARA DOCKER ==========
+
+# Para produção
+if os.environ.get('DOCKER_ENVIRONMENT') == 'production':
+    DEBUG = False
+    ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
+
+# Configuração de arquivos estáticos
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Configuração de arquivos de media
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+# ================================================
