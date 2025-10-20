@@ -23,16 +23,18 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código da aplicação PRIMEIRO
+# Copiar código da aplicação
 COPY ./mogo /app/
 
-# Copiar script de inicialização para a raiz (não /app/)
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
+# Copiar script de inicialização
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+    sed -i 's/\r$//' /entrypoint.sh
 
 RUN mkdir -p /app/staticfiles /app/media
 
 EXPOSE 8000
 
-ENTRYPOINT ["/docker-entrypoint.sh"]
+# Usar formato JSON (recomendado)
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "mogo.wsgi:application"]

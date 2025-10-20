@@ -1,2 +1,14 @@
 # SCM syntax highlighting & preventing 3-way merges
 pixi.lock merge=binary linguist-language=YAML linguist-generated=true
+
+# Forçar LF em arquivos shell
+*.sh text eol=lf
+
+# Forçar LF em arquivos Python
+*.py text eol=lf
+
+# Forçar LF em arquivos de configuração Docker
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+.dockerignore text eol=lf
+entrypoint.sh text eol=lf
