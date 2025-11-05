@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Rota, Local, HistoricoBusca
 from .serializers import RotaSerializer, LocalSerializer, HistoricoBuscaSerializer
+from analysis.services import processar_acessibilidade_rota_em_ram
 
 class RotaViewSet(viewsets.ModelViewSet):
     queryset = Rota.objects.all()
@@ -22,6 +23,13 @@ class RotaViewSet(viewsets.ModelViewSet):
         count = registros.count()
         registros.delete()
         return Response({"message": f"{count} rotas deletadas"}, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=["post"])
+    def avaliar_acessibilidade(self, request, pk=None):
+        rota = self.get_object()
+        api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
+        resultado = processar_acessibilidade_rota_em_ram(rota, api_key)
+        return Response(resultado, status=200)
 
 
 class LocalViewSet(viewsets.ModelViewSet):

@@ -2,6 +2,8 @@ from pydantic import ValidationError
 from django.db import IntegrityError
 from django.contrib.gis.geos import Point, LineString
 from django.contrib.gis.db.models.functions import Distance
+from analysis.services import processar_acessibilidade_rota_em_ram
+import os
 
 # Imports dos schemas
 from schemas.historico_busca_schemas import CriarHistoricoBuscaSchema
@@ -76,6 +78,9 @@ class NavigationService:
         dados_rota['polyline_line'] = polyline
 
         rota = Rota.objects.create(**dados_rota)
+        
+        api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
+        processar_acessibilidade_rota_em_ram(rota, api_key)
         return rota
 
     @staticmethod
