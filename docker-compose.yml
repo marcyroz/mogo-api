@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   db:
     image: postgis/postgis:15-3.5
@@ -11,7 +9,7 @@ services:
     volumes:
       - postgis_data:/var/lib/postgresql/data
     ports:
-      - "${DATABASE_PORT:-5432}:5432"
+      - "${DATABASE_PORT}:5432"
     networks:
       - mogo-network
     healthcheck:
@@ -20,33 +18,25 @@ services:
       timeout: 5s
       retries: 5
 
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: mogo_api
-    volumes:
-      - ./mogo:/app
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
+  redis:
+    image: redis:7-alpine
+    container_name: mogo_redis
     ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    environment:
-      - DATABASE_HOST=db
-      - DATABASE_PORT=5432
-    depends_on:
-      db:
-        condition: service_healthy
+      - "${REDIS_PORT}:6379"
     networks:
       - mogo-network
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
 
 volumes:
   postgis_data:
-  static_volume:
-  media_volume:
+  redis_data:
 
 networks:
   mogo-network:

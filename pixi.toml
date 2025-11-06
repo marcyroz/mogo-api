@@ -33,12 +33,16 @@ dill = "*"
 paddlepaddle = "*"
 paddleocr = "*"
 
-# Dependências extras que podem ser necessárias
+# Dependências extras
 setuptools = "*"
 numpy = "*"
 opencv-python = "*"
 shapely = "*"
 scipy = "*"
+
+# Celery & Redis
+celery = "*"
+redis = "*"
 
 # Pode remover essa linha se não usar diretamente
 yolo = "*"
