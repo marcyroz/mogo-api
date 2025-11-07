@@ -1,3 +1,5 @@
+version: "3.8"
+
 services:
   db:
     image: postgis/postgis:15-3.5
@@ -33,6 +35,31 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mogo_celery_worker
+    command: celery -A mogo worker -l info --concurrency=2 
+    volumes:
+      - ./mogo:/app/mogo
+    env_file:
+      - .env
+    environment:
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mogo-network
+    restart: unless-stopped
 
 volumes:
   postgis_data:
