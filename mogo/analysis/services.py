@@ -119,83 +119,94 @@ def interpolar_pontos_por_distancia(linestring, intervalo_metros=25):
 
 def processar_acessibilidade_rota_em_ram(rota, api_key, save_debug=False):
     """
-    Processa acessibilidade da rota baixando imagens do Street View.
+    Processa acessibilidade da rota analisando imagens do Street View.
+
+    Calcula um score de 0-10 baseado em:
+    - 60%: Confiança média das detecções YOLO
+    - 40%: Densidade de placas por imagem
     """
     pontos = interpolar_pontos_por_distancia(rota.polyline_line, intervalo_metros=25)
 
-    conf_soma, total = 0, 0
-    resultados = []
-    image_urls = []
-    images_skipped = 0
-    totalDetectado = 0
+    # Variáveis de contagem
+    conf_soma = 0  # Soma das confiças
+    total_deteccoes = 0  # Total de placas detectadas
+    resultados = []  # Resultados detalhados
+    images_skipped = 0  # Imagens sem dados válidos
 
-    # print(f"🗺️ Processando {len(pontos)} pontos ao longo da rota (a cada ~25m)...")
-    # print(f"📸 Filtrando apenas imagens oficiais do Google (outdoor)...")
-
+    # Processar cada ponto
     for lat, lng in pontos:
-        url = (
-            f"https://maps.googleapis.com/maps/api/streetview"
-            f"?size=640x640&location={lat},{lng}&fov=120&source=outdoor&key={api_key}"
-        )
-        image_urls.append(url)
-
+        # Baixar imagem Street View
         pil_img = baixar_streetview_em_ram(lat, lng, api_key, fov=120)
 
         if pil_img is None:
-            # print(f"⚠️ Ponto ({lat:.4f}, {lng:.4f}) - Sem imagem oficial Google")
             images_skipped += 1
             continue
 
+        # Detectar placas com YOLO
         objetos = detect_plates_from_memory(pil_img)
 
         if objetos:
-            # if save_debug:
-            #     try:
-            #         debug_path = desenhar_deteccoes_na_imagem(pil_img, objetos, lat, lng)
-            #         debug_imagens_salvas += 1
-            #     except Exception as e:
-            #         pass
-
             for obj in objetos:
-                text = ""
+                # Acumular confiança
                 conf_soma += obj["confidence"]
-                total += 1
+                total_deteccoes += 1
+
                 resultados.append(
                     {
                         "posicao": (lat, lng),
                         "objeto_conf": obj["confidence"],
-                        "ocr": text,
+                        "ocr": "",
                     }
                 )
-            totalDetectado += 1
-        # else:
-        #     print(f"⊘ Ponto ({lat:.4f}, {lng:.4f}) - Nenhuma detecção")
 
-    # Calcular score
-    if total > 0:
-        conf_media = conf_soma / total
-        num_imagens_validas = len(pontos) - images_skipped
-        deteccoes_por_imagem = (
-            total / num_imagens_validas if num_imagens_validas > 0 else 0
-        )
+    # CALCULAR SCORE (0-10)
+    num_imagens_validas = len(pontos) - images_skipped
 
-        score_acessibilidade = (conf_media * 0.6) + (
-            min(deteccoes_por_imagem / 10, 1.0) * 0.4
-        )
+    if total_deteccoes > 0 and num_imagens_validas > 0:
+        # Métrica 1: Confiança média das detecções (0-1)
+        conf_media = conf_soma / total_deteccoes
+
+        # Métrica 2: Densidade de placas por imagem (0-1)
+        deteccoes_por_imagem = total_deteccoes / num_imagens_validas
+        densidade_normalizada = min(deteccoes_por_imagem / 10, 1.0)
+
+        # 🎯 FÓRMULA FINAL: Score de 0-10
+        score_base = (conf_media * 0.6) + (densidade_normalizada * 0.4)
+        score_acessibilidade = round(score_base * 10, 2)  # Multiplica por 10
+
     else:
         conf_media = 0.0
         deteccoes_por_imagem = 0.0
         score_acessibilidade = 0.0
 
+    # Salvar no banco
     rota.score_acessibilidade = score_acessibilidade
     rota.save()
 
+    # Retornar resultados bem documentados
     return {
-        "score_media_confianca": round(score_acessibilidade, 4),
-        "media_confianca": round(conf_media, 4),
-        "total_deteccoes": total,
-        "deteccoes_por_imagem": round(deteccoes_por_imagem, 2),
+        # SCORE FINAL (0-10)
+        "score_acessibilidade": score_acessibilidade,
+        # COMPONENTES DO CÁLCULO
+        "confianca_media_deteccoes": round(conf_media, 4),  # 60% do peso
+        "deteccoes_por_imagem": round(deteccoes_por_imagem, 2),  # 40% do peso
+        # ESTATÍSTICAS
+        "total_deteccoes": total_deteccoes,
         "num_imagens_processadas": len(pontos),
-        "num_imagens_validas": len(pontos) - images_skipped,
+        "num_imagens_validas": num_imagens_validas,
         "num_imagens_puladas": images_skipped,
+        # INTERPRETAÇÃO
+        "interpretacao": _interpretar_score(score_acessibilidade),
     }
+
+
+def _interpretar_score(score):
+    """Interpreta o score em linguagem legível."""
+    if score >= 7:
+        return "Rota muito acessível"
+    elif score >= 5:
+        return "Rota parcialmente acessível"
+    elif score >= 3:
+        return "Rota com baixa acessibilidade"
+    else:
+        return "Rota inacessível"

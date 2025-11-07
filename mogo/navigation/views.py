@@ -39,6 +39,25 @@ class RotaViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=["get"])
+    def status(self, request, pk=None):
+        """Consulta status detalhado do processamento"""
+        rota = self.get_object()
+
+        # Se processou, retorna detalhes completos
+        resposta = {
+            "id": str(rota.id),
+            "status_processamento": rota.status_processamento,
+            "score_acessibilidade": rota.score_acessibilidade,
+            "concluido": rota.status_processamento == "concluido",
+        }
+
+        # Se tem erro
+        if rota.erro_mensagem:
+            resposta["erro"] = rota.erro_mensagem
+
+        return Response(resposta)
+
     @action(detail=False, methods=["delete"])
     def deletar_por_usuario(self, request):
         usuario_id = request.query_params.get("usuario_id")

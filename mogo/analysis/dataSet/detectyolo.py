@@ -81,10 +81,4 @@ def detect_plates_from_memory(pil_image, conf=0.05, debug=False, save_debug=Fals
                 )
                 todas_confiancas.append(float(confval))
 
-    # if debug and todas_confiancas:
-    #     print(f"  🔍 DEBUG - Confiança mínima: {min(todas_confiancas):.6f}")
-    #     print(f"  🔍 DEBUG - Confiança máxima: {max(todas_confiancas):.6f}")
-    #     print(f"  🔍 DEBUG - Confiança média: {sum(todas_confiancas)/len(todas_confiancas):.6f}")
-    #     print(f"  🔍 DEBUG - Total de detecções: {len(todas_confiancas)}")
-
     return objetos

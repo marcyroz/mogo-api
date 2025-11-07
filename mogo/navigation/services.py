@@ -80,8 +80,6 @@ class NavigationService:
 
         rota = Rota.objects.create(**dados_rota)
 
-        api_key = os.environ.get("GOOGLE_MAPS_API_KEY")
-        processar_acessibilidade_rota_em_ram(rota, api_key)
         return rota
 
     @staticmethod
