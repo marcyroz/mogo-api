@@ -11,7 +11,7 @@ services:
     volumes:
       - postgis_data:/var/lib/postgresql/data
     ports:
-      - "${DATABASE_PORT:-5432}:5432"
+      - "${DATABASE_PORT}:5432"
     networks:
       - mogo-network
     healthcheck:
@@ -20,13 +20,34 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: mogo_redis
+    ports:
+      - "${REDIS_PORT}:6379"
+    networks:
+      - mogo-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
   api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.api
     container_name: mogo_api
+    command: >
+      bash -c "
+      python manage.py migrate --noinput &&
+      python manage.py runserver 0.0.0.0:8000
+      "
     volumes:
-      - ./mogo:/app
+      - ./mogo:/app/mogo
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     ports:
@@ -36,8 +57,38 @@ services:
     environment:
       - DATABASE_HOST=db
       - DATABASE_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONUNBUFFERED=1
     depends_on:
       db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mogo-network
+    restart: unless-stopped
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: mogo_celery_worker
+    command: celery -A mogo worker -l info --concurrency=2
+    volumes:
+      - ./mogo:/app/mogo
+    env_file:
+      - .env
+    environment:
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - mogo-network
@@ -45,6 +96,7 @@ services:
 
 volumes:
   postgis_data:
+  redis_data:
   static_volume:
   media_volume:
 

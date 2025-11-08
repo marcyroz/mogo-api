@@ -9,15 +9,40 @@ version = "0.1.0"
 
 [dependencies]
 python = "3.9.*"
-gdal = "3.9.*" 
-psycopg2 = "*" 
+gdal = "3.9.*"
+psycopg2 = "*"
 pydantic = ">=2.11.7,<3"
-
-[pypi-dependencies]
+requests = "*"
 django = "*"
 djangorestframework = "*"
 python-dotenv = "*"
 pillow = "*"
-pydantic = {version = "*", extras = ["email"]}
 email-validator = "*"
+
+[pypi-dependencies]
+# Django & API
 djangorestframework-simplejwt = "*"
+
+# Deep Learning (YOLO)
+ultralytics = "*"
+torch = "*"
+torchvision = "*"
+dill = "*"
+
+# OCR (PaddleOCR)
+paddlepaddle = "*"
+paddleocr = "*"
+
+# Dependências extras
+setuptools = "*"
+numpy = "*"
+opencv-python = "*"
+shapely = "*"
+scipy = "*"
+
+# Celery & Redis
+celery = "*"
+redis = "*"
+
+# Pode remover essa linha se não usar diretamente
+yolo = "*"

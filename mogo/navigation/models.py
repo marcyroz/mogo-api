@@ -23,6 +23,19 @@ class Rota(models.Model):
 
     # Score de acessibilidade
     score_acessibilidade = models.FloatField(default=0.0)
+    
+    STATUS_CHOICES = [
+        ('pendente', 'Pendente'),
+        ('processando', 'Processando'),
+        ('concluido', 'Concluído'),
+        ('erro', 'Erro'),
+    ]
+    status_processamento = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pendente'
+    )
+    erro_mensagem = models.TextField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 

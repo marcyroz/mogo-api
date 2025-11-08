@@ -2,17 +2,19 @@ from pydantic import ValidationError
 from django.db import IntegrityError
 from django.contrib.gis.geos import Point, LineString
 from django.contrib.gis.db.models.functions import Distance
+from analysis.services import processar_acessibilidade_rota_em_ram
+import os
 
 # Imports dos schemas
-from schemas.historico_busca_schemas import CriarHistoricoBuscaSchema
-from schemas.local_schemas import CriarLocalSchema
-from schemas.rota_schema import CriarRotaSchema
+from .schemas.historico_busca_schemas import CriarHistoricoBuscaSchema
+from .schemas.local_schemas import CriarLocalSchema
+from .schemas.rota_schema import CriarRotaSchema
 
 # Imports dos models
-from models import HistoricoBusca, Local, Rota
+from .models import HistoricoBusca, Local, Rota
 
 # Imports das exceptions customizadas
-from exceptions.navigation_exceptions import (
+from .exceptions.navigation_exceptions import (
     LocalNaoEncontradoError,
     LocalValidationError,
     LocalJaExisteError,
@@ -21,6 +23,7 @@ from exceptions.navigation_exceptions import (
     CoordenadaInvalidaError,
     HistoricoBuscaValidationError,
 )
+
 
 class NavigationService:
     """Service layer para operações de navegação"""
@@ -32,16 +35,18 @@ class NavigationService:
         """
         try:
             schema = CriarLocalSchema(**dados)
-            
+
         except ValidationError as e:
             raise LocalValidationError()
 
         # Verificar se já existe um local muito próximo (mesmo ponto basicamente)
         ponto_novo = Point(schema.longitude, schema.latitude)
         locais_proximos = Local.objects.annotate(
-            distancia=Distance('point', ponto_novo)
-        ).filter(distancia__lt=0.01)  # Menos de 10 metros
-        
+            distancia=Distance("point", ponto_novo)
+        ).filter(
+            distancia__lt=0.01
+        )  # Menos de 10 metros
+
         if locais_proximos.exists():
             raise LocalJaExisteError()
 
@@ -50,32 +55,31 @@ class NavigationService:
 
     @staticmethod
     def criar_rota(dados):
-        """
-        Criar nova rota
-        """
         try:
             schema = CriarRotaSchema(**dados)
-            
         except ValidationError as e:
             raise RotaValidationError()
 
-        # Validar se as coordenadas são válidas (dentro do Brasil ou área de interesse)
         if not NavigationService._validar_coordenadas_brasil(
-            schema.origem_lat, schema.origem_lng, 
-            schema.destino_lat, schema.destino_lng
+            schema.origem_lat, schema.origem_lng, schema.destino_lat, schema.destino_lng
         ):
             raise CoordenadaInvalidaError()
 
-        # Criar geometria da linha da rota
-        origem_point = Point(schema.origem_lng, schema.origem_lat)
-        destino_point = Point(schema.destino_lng, schema.destino_lat)
-        polyline = LineString(origem_point, destino_point)
+        # SE veio polyline_points (Google Maps), use isso
+        if schema.polyline_points and len(schema.polyline_points) > 2:
+            polyline = LineString(*schema.polyline_points)
+        else:
+            # Senão, cria linha reta entre 2 pontos
+            origem_point = Point(schema.origem_lng, schema.origem_lat)
+            destino_point = Point(schema.destino_lng, schema.destino_lat)
+            polyline = LineString(origem_point, destino_point)
 
-        # Criar rota com dados do schema + geometria
         dados_rota = schema.dict()
-        dados_rota['polyline_line'] = polyline
+        dados_rota["polyline_line"] = polyline
+        dados_rota.pop("polyline_points", None)  # Remove do dict
 
         rota = Rota.objects.create(**dados_rota)
+
         return rota
 
     @staticmethod
@@ -85,7 +89,7 @@ class NavigationService:
         """
         try:
             schema = CriarHistoricoBuscaSchema(**dados)
-            
+
         except ValidationError as e:
             raise HistoricoBuscaValidationError()
 
@@ -102,7 +106,7 @@ class NavigationService:
             return local
         except Local.DoesNotExist:
             raise LocalNaoEncontradoError()
-        
+
     @staticmethod
     def buscar_rota(rota_id):
         """
@@ -121,18 +125,18 @@ class NavigationService:
         """
         try:
             ponto_referencia = Point(longitude, latitude)
-            
+
             # Converter km para graus (aproximação)
             raio_graus = raio_km / 111.0
-            
-            locais = Local.objects.annotate(
-                distancia=Distance('point', ponto_referencia)
-            ).filter(
-                distancia__lt=raio_graus
-            ).order_by('distancia')
-            
+
+            locais = (
+                Local.objects.annotate(distancia=Distance("point", ponto_referencia))
+                .filter(distancia__lt=raio_graus)
+                .order_by("distancia")
+            )
+
             return locais
-            
+
         except Exception:
             raise CoordenadaInvalidaError()
 
@@ -141,10 +145,10 @@ class NavigationService:
         """
         Buscar rotas de um usuário
         """
-        rotas = Rota.objects.filter(
-            usuario_id=usuario_id
-        ).order_by('-created_at')[:limite]
-        
+        rotas = Rota.objects.filter(usuario_id=usuario_id).order_by("-created_at")[
+            :limite
+        ]
+
         return rotas
 
     @staticmethod
@@ -152,10 +156,10 @@ class NavigationService:
         """
         Buscar histórico de buscas de um usuário
         """
-        historico = HistoricoBusca.objects.filter(
-            usuario_id=usuario_id
-        ).order_by('-data_hora')[:limite]
-        
+        historico = HistoricoBusca.objects.filter(usuario_id=usuario_id).order_by(
+            "-data_hora"
+        )[:limite]
+
         return historico
 
     @staticmethod
@@ -173,16 +177,16 @@ class NavigationService:
         # Por enquanto, retorna dados básicos
         origem_point = Point(origem_lng, origem_lat)
         destino_point = Point(destino_lng, destino_lat)
-        
+
         # Calcular distância aproximada
         distancia_km = origem_point.distance(destino_point) * 111
-        
+
         return {
-            'origem': {'lat': origem_lat, 'lng': origem_lng},
-            'destino': {'lat': destino_lat, 'lng': destino_lng},
-            'distancia_estimada_km': round(distancia_km, 2),
-            'geometria': LineString(origem_point, destino_point),
-            'score_acessibilidade': 0.0  # Será calculado pelo serviço YOLO
+            "origem": {"lat": origem_lat, "lng": origem_lng},
+            "destino": {"lat": destino_lat, "lng": destino_lng},
+            "distancia_estimada_km": round(distancia_km, 2),
+            "geometria": LineString(origem_point, destino_point),
+            "score_acessibilidade": 0.0,  # Será calculado pelo serviço YOLO
         }
 
     @staticmethod
@@ -193,15 +197,14 @@ class NavigationService:
         # Limites aproximados do Brasil
         BRASIL_LAT_MIN, BRASIL_LAT_MAX = -34.0, 6.0
         BRASIL_LNG_MIN, BRASIL_LNG_MAX = -74.0, -32.0
-        
-        coordenadas = [
-            (origem_lat, origem_lng),
-            (destino_lat, destino_lng)
-        ]
-        
+
+        coordenadas = [(origem_lat, origem_lng), (destino_lat, destino_lng)]
+
         for lat, lng in coordenadas:
-            if not (BRASIL_LAT_MIN <= lat <= BRASIL_LAT_MAX and
-                    BRASIL_LNG_MIN <= lng <= BRASIL_LNG_MAX):
+            if not (
+                BRASIL_LAT_MIN <= lat <= BRASIL_LAT_MAX
+                and BRASIL_LNG_MIN <= lng <= BRASIL_LNG_MAX
+            ):
                 return False
-                
+
         return True
