@@ -32,3 +32,7 @@ shapely>=2.0,<3.0
 scipy>=1.10,<2.0
 dill>=0.3,<0.4
 setuptools>=68.0,<70.0
+
+# Documentation
+drf-spectacular>=0.27.0
+drf-spectacular-sidecar>=0.27.0
