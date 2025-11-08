@@ -1,11 +1,11 @@
-# Dockerfile.api
+# Dockerfile.api (PRODUCTION-READY)
 FROM python:3.9-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DEBIAN_FRONTEND=noninteractive
 
-# Instalar libs
+# Instalar libs do sistema (não muda sempre)
 RUN apt-get update && apt-get install -y \
     gdal-bin libgdal-dev libgeos-dev libproj-dev \
     postgresql-client build-essential gcc g++ python3-dev \
@@ -18,17 +18,18 @@ ENV CPLUS_INCLUDE_PATH=/usr/include/gdal C_INCLUDE_PATH=/usr/include/gdal
 
 WORKDIR /app
 
-# Instalar requirements
+# COPIAR requirements.txt ANTES do código
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
 
-# Copiar código
+# INSTALAR SEM --no-cache-dir (deixa Docker cachear!)
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
+
+# COPIAR código (último - muda mais frequentemente)
 COPY ./mogo /app/mogo
 
 WORKDIR /app/mogo
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD python -c "import django; django.setup()" || exit 1
 

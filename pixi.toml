@@ -46,3 +46,7 @@ redis = "*"
 
 # Pode remover essa linha se não usar diretamente
 yolo = "*"
+
+# Documentation
+drf-spectacular = "*"
+drf-spectacular-sidecar = "*"
