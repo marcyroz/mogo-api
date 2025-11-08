@@ -65,7 +65,7 @@ class NavigationService:
         ):
             raise CoordenadaInvalidaError()
 
-        # ✅ SE veio polyline_points (Google Maps), use isso
+        # SE veio polyline_points (Google Maps), use isso
         if schema.polyline_points and len(schema.polyline_points) > 2:
             polyline = LineString(*schema.polyline_points)
         else:

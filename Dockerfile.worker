@@ -1,0 +1,31 @@
+# Dockerfile.worker
+FROM python:3.9-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Instalar libs
+RUN apt-get update && apt-get install -y \
+    gdal-bin libgdal-dev libgeos-dev libproj-dev \
+    postgresql-client build-essential gcc g++ python3-dev \
+    netcat-openbsd libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
+    libgomp1 libgthread-2.0-0 libavcodec-dev libavformat-dev libswscale-dev \
+    ffmpeg libjpeg-dev libpng-dev libtiff-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CPLUS_INCLUDE_PATH=/usr/include/gdal C_INCLUDE_PATH=/usr/include/gdal
+
+WORKDIR /app
+
+# Instalar requirements
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copiar código
+COPY ./mogo /app/mogo
+
+WORKDIR /app/mogo
+
+CMD ["celery", "-A", "mogo", "worker", "-l", "info"]

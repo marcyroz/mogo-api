@@ -24,6 +24,11 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.pyc
+*.pyo
+node_modules/
+*.pot
+.DS_Store
 
 # Virtual environments
 venv/

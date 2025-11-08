@@ -12,10 +12,10 @@ import os
 #     """
 #     Desenha os bounding boxes e confiança na imagem original.
 #     """
-#     # ✅ Criar pasta se não existir
+#     # Criar pasta se não existir
 #     if not os.path.exists(debug_dir):
 #         os.makedirs(debug_dir)
-#         print(f"   📁 Pasta criada: {debug_dir}/")
+#         print(f" Pasta criada: {debug_dir}/")
 
 #     # Criar cópia para desenhar
 #     img_debug = pil_img.copy()
@@ -38,7 +38,7 @@ import os
 #         (255, 165, 0),  # laranja
 #     ]
 
-#     # ✅ Desenhar cada detecção USANDO O BBOX CORRETO
+#     # Desenhar cada detecção USANDO O BBOX CORRETO
 #     for idx, obj in enumerate(objetos):
 #         bbox = obj.get("bbox")  # (x_min, y_min, x_max, y_max)
 #         confidence = obj["confidence"]
@@ -47,7 +47,7 @@ import os
 #             x_min, y_min, x_max, y_max = [int(x) for x in bbox]
 #             cor = cores[idx % len(cores)]
 
-#             # ✅ Desenhar retângulo MAIOR (não aquele 50px genérico)
+#             # Desenhar retângulo MAIOR (não aquele 50px genérico)
 #             draw.rectangle([x_min, y_min, x_max, y_max], outline=cor, width=4)
 
 #             # Desenhar confiança no topo do retângulo
@@ -75,7 +75,7 @@ import os
 #     filepath = os.path.join(os.getcwd(), debug_dir, safe_filename)
 
 #     img_debug.save(filepath)
-#     print(f"   💾 Salvo: {filepath}")
+#     print(f" Salvo: {filepath}")
 
 #     return filepath
 
@@ -170,7 +170,7 @@ def processar_acessibilidade_rota_em_ram(rota, api_key, save_debug=False):
         deteccoes_por_imagem = total_deteccoes / num_imagens_validas
         densidade_normalizada = min(deteccoes_por_imagem / 10, 1.0)
 
-        # 🎯 FÓRMULA FINAL: Score de 0-10
+        # FÓRMULA FINAL: Score de 0-10
         score_base = (conf_media * 0.6) + (densidade_normalizada * 0.4)
         score_acessibilidade = round(score_base * 10, 2)  # Multiplica por 10
 
